@@ -1,0 +1,13 @@
+# XAI Agreement and Faithfulness Empirical Study
+# Core experiment dependencies pinned to exact versions used for the reported study
+numpy==2.2.6
+pandas==2.2.2
+scikit-learn==1.5.1
+scipy==1.13.0
+xgboost==3.0.2
+shap==0.47.2
+lime==0.2.0.1
+matplotlib==3.8.4
+seaborn==0.13.2
+tqdm==4.67.1
+pypdf==6.7.5
