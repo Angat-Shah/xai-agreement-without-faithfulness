@@ -319,6 +319,104 @@ def generate_permutation_importance(model, X_sample, dataset_info):
     return perm_values
 
 
+# ============================================================================
+# PHASE 5: AGREEMENT ANALYSIS (RQ1)
+# ============================================================================
+
+def compute_agreement(shap_vals, lime_vals, perm_vals, feature_names):
+    """Compute pairwise agreement between explanation methods."""
+    print("\n" + "=" * 70)
+    print("PHASE 5: Computing explanation agreement (RQ1)")
+    print("=" * 70)
+
+    n_samples = shap_vals.shape[0]
+    n_features = shap_vals.shape[1]
+
+    methods = {
+        "SHAP": np.abs(shap_vals),  # Use absolute values for ranking
+        "LIME": np.abs(lime_vals),
+        "PermImp": perm_vals,  # Already absolute
+    }
+
+    method_names = list(methods.keys())
+    pairs = [(method_names[i], method_names[j])
+             for i in range(len(method_names))
+             for j in range(i+1, len(method_names))]
+
+    results = {
+        "spearman": {},
+        "kendall": {},
+        "topk_3": {},
+        "topk_5": {},
+    }
+
+    for m1, m2 in pairs:
+        pair_key = f"{m1}_vs_{m2}"
+        spearman_rhos = []
+        kendall_taus = []
+        topk3_overlaps = []
+        topk5_overlaps = []
+
+        for i in range(n_samples):
+            v1 = methods[m1][i]
+            v2 = methods[m2][i]
+
+            # Skip if either is all zeros
+            if np.std(v1) == 0 or np.std(v2) == 0:
+                continue
+
+            # Spearman
+            rho, _ = stats.spearmanr(v1, v2)
+            if not np.isnan(rho):
+                spearman_rhos.append(rho)
+
+            # Kendall
+            tau, _ = stats.kendalltau(v1, v2)
+            if not np.isnan(tau):
+                kendall_taus.append(tau)
+
+            # Top-k overlap
+            rank1 = np.argsort(-v1)
+            rank2 = np.argsort(-v2)
+
+            topk3 = len(set(rank1[:3]) & set(rank2[:3])) / 3.0
+            topk3_overlaps.append(topk3)
+
+            topk5 = len(set(rank1[:5]) & set(rank2[:5])) / 5.0
+            topk5_overlaps.append(topk5)
+
+        results["spearman"][pair_key] = {
+            "mean": float(np.mean(spearman_rhos)),
+            "std": float(np.std(spearman_rhos)),
+            "median": float(np.median(spearman_rhos)),
+            "values": [float(v) for v in spearman_rhos],
+        }
+        results["kendall"][pair_key] = {
+            "mean": float(np.mean(kendall_taus)),
+            "std": float(np.std(kendall_taus)),
+            "median": float(np.median(kendall_taus)),
+            "values": [float(v) for v in kendall_taus],
+        }
+        results["topk_3"][pair_key] = {
+            "mean": float(np.mean(topk3_overlaps)),
+            "std": float(np.std(topk3_overlaps)),
+            "values": [float(v) for v in topk3_overlaps],
+        }
+        results["topk_5"][pair_key] = {
+            "mean": float(np.mean(topk5_overlaps)),
+            "std": float(np.std(topk5_overlaps)),
+            "values": [float(v) for v in topk5_overlaps],
+        }
+
+        print(f"\n{pair_key}:")
+        print(f"  Spearman ρ: {results['spearman'][pair_key]['mean']:.3f} ± {results['spearman'][pair_key]['std']:.3f}")
+        print(f"  Kendall τ:  {results['kendall'][pair_key]['mean']:.3f} ± {results['kendall'][pair_key]['std']:.3f}")
+        print(f"  Top-3 overlap: {results['topk_3'][pair_key]['mean']:.3f} ± {results['topk_3'][pair_key]['std']:.3f}")
+        print(f"  Top-5 overlap: {results['topk_5'][pair_key]['mean']:.3f} ± {results['topk_5'][pair_key]['std']:.3f}")
+
+    return results
+
+
 
 # ============================================================================
 # MAIN PIPELINE
@@ -345,6 +443,15 @@ def main():
     shap_vals = generate_shap_explanations(model, X_sample, X_train)
     lime_vals = generate_lime_explanations(model, X_sample, X_train, dataset_info)
     perm_vals = generate_permutation_importance(model, X_sample, dataset_info)
+
+    # Save raw explanations sample
+    X_sample.to_csv(os.path.join(RAW_DIR, "X_sample.csv"), index=False)
+    y_sample.to_csv(os.path.join(RAW_DIR, "y_sample.csv"), index=False)
+
+    # Phase 5: Agreement
+    agreement_results = compute_agreement(
+        shap_vals, lime_vals, perm_vals, dataset_info["feature_names"]
+    )
 
 if __name__ == "__main__":
     main()
