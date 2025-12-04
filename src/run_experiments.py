@@ -417,6 +417,104 @@ def compute_agreement(shap_vals, lime_vals, perm_vals, feature_names):
     return results
 
 
+# ============================================================================
+# PHASE 6: FAITHFULNESS EVALUATION (RQ2)
+# ============================================================================
+
+def compute_masking_values(X_train, dataset_info):
+    """Compute training-set median/mode for feature masking."""
+    mask_values = {}
+    for col in dataset_info["feature_names"]:
+        if col in dataset_info["continuous_cols"]:
+            mask_values[col] = float(X_train[col].median())
+        else:
+            mask_values[col] = float(X_train[col].mode().iloc[0])
+    return mask_values
+
+
+def compute_faithfulness(model, X_sample, shap_vals, lime_vals, perm_vals,
+                         dataset_info, mask_values):
+    """Compute comprehensiveness and sufficiency for each method."""
+    print("\n" + "=" * 70)
+    print("PHASE 6: Computing faithfulness metrics (RQ2)")
+    print("=" * 70)
+
+    feature_names = dataset_info["feature_names"]
+    n_features = len(feature_names)
+
+    methods = {
+        "SHAP": np.abs(shap_vals),
+        "LIME": np.abs(lime_vals),
+        "PermImp": perm_vals,
+    }
+
+    # Also add random baseline
+    rng = np.random.RandomState(RANDOM_SEED + 1)
+    methods["Random"] = rng.rand(*shap_vals.shape)
+
+    mask_array = np.array([mask_values[f] for f in feature_names])
+
+    # Original predictions
+    original_probs = model.predict_proba(X_sample.values)[:, 1]
+    original_preds = model.predict(X_sample.values)
+
+    results = {"comprehensiveness": {}, "sufficiency": {}}
+
+    for method_name, importance_vals in methods.items():
+        print(f"\n  Method: {method_name}")
+        comp_scores = {k: [] for k in FAITHFULNESS_K_VALUES}
+        suff_scores = {k: [] for k in FAITHFULNESS_K_VALUES}
+
+        for i in range(len(X_sample)):
+            x = X_sample.values[i].copy()
+            imp = importance_vals[i]
+            ranked_features = np.argsort(-imp)  # Descending importance
+            pred_class = original_preds[i]
+            orig_prob = original_probs[i] if pred_class == 1 else (1 - original_probs[i])
+
+            for k in FAITHFULNESS_K_VALUES:
+                if k > n_features:
+                    continue
+
+                # Comprehensiveness: remove top-k features
+                x_comp = x.copy()
+                for fi in ranked_features[:k]:
+                    x_comp[fi] = mask_array[fi]
+                comp_prob = model.predict_proba(x_comp.reshape(1, -1))[0]
+                comp_prob_class = comp_prob[pred_class]
+                comp_scores[k].append(orig_prob - comp_prob_class)
+
+                # Sufficiency: keep only top-k features
+                x_suff = mask_array.copy()
+                for fi in ranked_features[:k]:
+                    x_suff[fi] = x[fi]
+                suff_prob = model.predict_proba(x_suff.reshape(1, -1))[0]
+                suff_prob_class = suff_prob[pred_class]
+                suff_scores[k].append(orig_prob - suff_prob_class)
+
+        results["comprehensiveness"][method_name] = {}
+        results["sufficiency"][method_name] = {}
+
+        for k in FAITHFULNESS_K_VALUES:
+            results["comprehensiveness"][method_name][f"k={k}"] = {
+                "mean": float(np.mean(comp_scores[k])),
+                "std": float(np.std(comp_scores[k])),
+                "median": float(np.median(comp_scores[k])),
+                "values": [float(v) for v in comp_scores[k]],
+            }
+            results["sufficiency"][method_name][f"k={k}"] = {
+                "mean": float(np.mean(suff_scores[k])),
+                "std": float(np.std(suff_scores[k])),
+                "median": float(np.median(suff_scores[k])),
+                "values": [float(v) for v in suff_scores[k]],
+            }
+
+            print(f"    k={k}: Comp={np.mean(comp_scores[k]):.4f}±{np.std(comp_scores[k]):.4f}, "
+                  f"Suff={np.mean(suff_scores[k]):.4f}±{np.std(suff_scores[k]):.4f}")
+
+    return results
+
+
 
 # ============================================================================
 # MAIN PIPELINE
@@ -451,6 +549,12 @@ def main():
     # Phase 5: Agreement
     agreement_results = compute_agreement(
         shap_vals, lime_vals, perm_vals, dataset_info["feature_names"]
+    )
+
+    # Phase 6: Faithfulness
+    mask_values = compute_masking_values(X_train, dataset_info)
+    faithfulness_results = compute_faithfulness(
+        model, X_sample, shap_vals, lime_vals, perm_vals, dataset_info, mask_values
     )
 
 if __name__ == "__main__":
