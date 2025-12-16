@@ -515,6 +515,141 @@ def compute_faithfulness(model, X_sample, shap_vals, lime_vals, perm_vals,
     return results
 
 
+# ============================================================================
+# PHASE 7: AGREEMENT VS FAITHFULNESS (RQ3)
+# ============================================================================
+
+def compute_agreement_vs_faithfulness(agreement_results, faithfulness_results,
+                                       shap_vals, lime_vals, perm_vals, model,
+                                       X_sample, dataset_info, mask_values):
+    """Analyze whether inter-method agreement predicts faithfulness."""
+    print("\n" + "=" * 70)
+    print("PHASE 7: Agreement vs. Faithfulness analysis (RQ3)")
+    print("=" * 70)
+
+    feature_names = dataset_info["feature_names"]
+    n_features = len(feature_names)
+    mask_array = np.array([mask_values[f] for f in feature_names])
+
+    methods = {
+        "SHAP": np.abs(shap_vals),
+        "LIME": np.abs(lime_vals),
+        "PermImp": perm_vals,
+    }
+
+    # For each instance, compute agreement between SHAP and LIME
+    # and the average faithfulness (comprehensiveness) of both
+    n_samples = len(X_sample)
+    original_probs = model.predict_proba(X_sample.values)[:, 1]
+    original_preds = model.predict(X_sample.values)
+
+    pair_analyses = {}
+
+    method_names = list(methods.keys())
+    pairs = [(method_names[i], method_names[j])
+             for i in range(len(method_names))
+             for j in range(i+1, len(method_names))]
+
+    for m1, m2 in pairs:
+        pair_key = f"{m1}_vs_{m2}"
+        agreements = []
+        comp_a_k3 = []
+        comp_b_k3 = []
+        avg_comp_k3 = []
+
+        for i in range(n_samples):
+            v1 = methods[m1][i]
+            v2 = methods[m2][i]
+
+            if np.std(v1) == 0 or np.std(v2) == 0:
+                continue
+
+            rho, _ = stats.spearmanr(v1, v2)
+            if np.isnan(rho):
+                continue
+            agreements.append(rho)
+
+            # Average comprehensiveness at k=3 for both methods
+            x = X_sample.values[i].copy()
+            pred_class = original_preds[i]
+            orig_prob = original_probs[i] if pred_class == 1 else (1 - original_probs[i])
+
+            comp_vals = []
+            for vals in [v1, v2]:
+                ranked = np.argsort(-vals)
+                x_comp = x.copy()
+                for fi in ranked[:3]:
+                    x_comp[fi] = mask_array[fi]
+                comp_prob = model.predict_proba(x_comp.reshape(1, -1))[0][pred_class]
+                comp_vals.append(orig_prob - comp_prob)
+
+            comp_a_k3.append(comp_vals[0])
+            comp_b_k3.append(comp_vals[1])
+            avg_comp_k3.append(np.mean(comp_vals))
+
+        agreements = np.array(agreements)
+        avg_comp_k3 = np.array(avg_comp_k3)
+        comp_a_k3 = np.array(comp_a_k3)
+        comp_b_k3 = np.array(comp_b_k3)
+
+        # Correlation between agreement and faithfulness
+        corr_pearson, p_pearson = stats.pearsonr(agreements, avg_comp_k3)
+        corr_spearman, p_spearman = stats.spearmanr(agreements, avg_comp_k3)
+
+        # RQ3 Sensitivity Analysis: correlate agreement with individual methods
+        r_a, p_a = stats.spearmanr(agreements, comp_a_k3)
+        r_b, p_b = stats.spearmanr(agreements, comp_b_k3)
+
+        # Split into high/low agreement groups
+        median_agreement = np.median(agreements)
+        high_agree_mask = agreements >= median_agreement
+        low_agree_mask = agreements < median_agreement
+
+        high_agree_faith = avg_comp_k3[high_agree_mask]
+        low_agree_faith = avg_comp_k3[low_agree_mask]
+
+        # Wilcoxon test
+        if len(high_agree_faith) > 0 and len(low_agree_faith) > 0:
+            u_stat, u_p = stats.mannwhitneyu(high_agree_faith, low_agree_faith, alternative='two-sided')
+        else:
+            u_stat, u_p = np.nan, np.nan
+
+        pair_analyses[pair_key] = {
+            "pearson_r": float(corr_pearson),
+            "pearson_p": float(p_pearson),
+            "spearman_r": float(corr_spearman),
+            "spearman_p": float(p_spearman),
+            "high_agreement_faithfulness_mean": float(np.mean(high_agree_faith)),
+            "low_agreement_faithfulness_mean": float(np.mean(low_agree_faith)),
+            "mannwhitney_U": float(u_stat) if not np.isnan(u_stat) else None,
+            "mannwhitney_p": float(u_p) if not np.isnan(u_p) else None,
+            "n_high": int(np.sum(high_agree_mask)),
+            "n_low": int(np.sum(low_agree_mask)),
+            "sensitivity_analysis": {
+                "method_a": m1,
+                "spearman_r_a": float(r_a),
+                "spearman_p_a": float(p_a),
+                "method_b": m2,
+                "spearman_r_b": float(r_b),
+                "spearman_p_b": float(p_b),
+                "spearman_r_avg": float(corr_spearman),
+                "spearman_p_avg": float(p_spearman),
+            },
+            "agreement_values": [float(v) for v in agreements],
+            "faithfulness_values": [float(v) for v in avg_comp_k3],
+        }
+
+        print(f"\n{pair_key}:")
+        print(f"  Pearson r(agreement, faithfulness) = {corr_pearson:.3f} (p={p_pearson:.4f})")
+        print(f"  Spearman r(agreement, faithfulness) = {corr_spearman:.3f} (p={p_spearman:.4f})")
+        print(f"  High-agreement faithfulness: {np.mean(high_agree_faith):.4f}")
+        print(f"  Low-agreement faithfulness:  {np.mean(low_agree_faith):.4f}")
+        if not np.isnan(u_p):
+            print(f"  Mann-Whitney U p-value: {u_p:.4f}")
+
+    return pair_analyses
+
+
 
 # ============================================================================
 # MAIN PIPELINE
@@ -555,6 +690,12 @@ def main():
     mask_values = compute_masking_values(X_train, dataset_info)
     faithfulness_results = compute_faithfulness(
         model, X_sample, shap_vals, lime_vals, perm_vals, dataset_info, mask_values
+    )
+
+    # Phase 7: Agreement vs Faithfulness
+    agree_faith_results = compute_agreement_vs_faithfulness(
+        agreement_results, faithfulness_results,
+        shap_vals, lime_vals, perm_vals, model, X_sample, dataset_info, mask_values
     )
 
 if __name__ == "__main__":
