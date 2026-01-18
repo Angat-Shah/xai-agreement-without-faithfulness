@@ -650,6 +650,161 @@ def compute_agreement_vs_faithfulness(agreement_results, faithfulness_results,
     return pair_analyses
 
 
+# ============================================================================
+# PHASE 8: STABILITY ANALYSIS (RQ4)
+# ============================================================================
+
+def compute_stability(model, X_sample, X_train, dataset_info):
+    """Evaluate explanation stability under input perturbation."""
+    print("\n" + "=" * 70)
+    print("PHASE 8: Computing explanation stability (RQ4)")
+    print("=" * 70)
+
+    feature_names = dataset_info["feature_names"]
+    continuous_cols = dataset_info["continuous_cols"]
+    continuous_indices = [feature_names.index(c) for c in continuous_cols]
+    categorical_indices = [feature_names.index(c) for c in dataset_info["categorical_cols"]]
+
+    # Compute feature ranges for noise scaling
+    feature_ranges = {}
+    for col in continuous_cols:
+        col_range = X_train[col].max() - X_train[col].min()
+        feature_ranges[col] = col_range
+
+    # Subsample for stability (computationally expensive)
+    n_stability = min(100, len(X_sample))
+    stability_idx = np.random.choice(len(X_sample), size=n_stability, replace=False)
+    X_stability = X_sample.iloc[stability_idx]
+
+    print(f"Computing stability for {n_stability} instances, {STABILITY_N_PERTURBATIONS} perturbations each")
+
+    # SHAP explainer
+    shap_explainer = shap.TreeExplainer(model)
+
+    # LIME explainer
+    lime_explainer = lime.lime_tabular.LimeTabularExplainer(
+        training_data=X_train.values,
+        feature_names=feature_names,
+        categorical_features=categorical_indices,
+        class_names=["<=50K", ">50K"],
+        mode="classification",
+        random_state=RANDOM_SEED,
+    )
+
+    shap_stabilities = []
+    lime_stabilities = []
+
+    for idx_i, (idx, row) in enumerate(X_stability.iterrows()):
+        if (idx_i + 1) % 20 == 0:
+            print(f"  Stability: instance {idx_i+1}/{n_stability}")
+
+        x_orig = row.values.copy()
+
+        # Original explanations
+        shap_orig = shap_explainer.shap_values(x_orig.reshape(1, -1))
+        if isinstance(shap_orig, list):
+            shap_orig = shap_orig[1]
+        shap_orig = np.abs(shap_orig.flatten())
+
+        lime_exp_orig = lime_explainer.explain_instance(
+            x_orig, model.predict_proba,
+            num_features=len(feature_names),
+            num_samples=LIME_NUM_SAMPLES,
+        )
+        lime_orig = np.zeros(len(feature_names))
+        exp_map = dict(lime_exp_orig.as_map().get(1, lime_exp_orig.as_map().get(0, [])))
+        for fi, w in exp_map.items():
+            lime_orig[fi] = abs(w)
+
+        shap_perturbed_rhos = []
+        lime_perturbed_rhos = []
+
+        for p in range(STABILITY_N_PERTURBATIONS):
+            x_pert = x_orig.copy()
+            # Perturb continuous features with Gaussian noise
+            for ci, col in zip(continuous_indices, continuous_cols):
+                noise_std = STABILITY_NOISE_SCALE * feature_ranges[col]
+                x_pert[ci] += np.random.normal(0, noise_std)
+
+            # SHAP on perturbed
+            shap_pert = shap_explainer.shap_values(x_pert.reshape(1, -1))
+            if isinstance(shap_pert, list):
+                shap_pert = shap_pert[1]
+            shap_pert = np.abs(shap_pert.flatten())
+
+            if np.std(shap_orig) > 0 and np.std(shap_pert) > 0:
+                rho, _ = stats.spearmanr(shap_orig, shap_pert)
+                if not np.isnan(rho):
+                    shap_perturbed_rhos.append(rho)
+
+            # LIME on perturbed
+            lime_exp_pert = lime_explainer.explain_instance(
+                x_pert, model.predict_proba,
+                num_features=len(feature_names),
+                num_samples=LIME_NUM_SAMPLES,
+            )
+            lime_pert = np.zeros(len(feature_names))
+            exp_map_pert = dict(lime_exp_pert.as_map().get(1, lime_exp_pert.as_map().get(0, [])))
+            for fi, w in exp_map_pert.items():
+                lime_pert[fi] = abs(w)
+
+            if np.std(lime_orig) > 0 and np.std(lime_pert) > 0:
+                rho, _ = stats.spearmanr(lime_orig, lime_pert)
+                if not np.isnan(rho):
+                    lime_perturbed_rhos.append(rho)
+
+        if shap_perturbed_rhos:
+            shap_stabilities.append(np.mean(shap_perturbed_rhos))
+        if lime_perturbed_rhos:
+            lime_stabilities.append(np.mean(lime_perturbed_rhos))
+
+    results = {
+        "SHAP": {
+            "mean": float(np.mean(shap_stabilities)),
+            "std": float(np.std(shap_stabilities)),
+            "median": float(np.median(shap_stabilities)),
+            "values": [float(v) for v in shap_stabilities],
+        },
+        "LIME": {
+            "mean": float(np.mean(lime_stabilities)),
+            "std": float(np.std(lime_stabilities)),
+            "median": float(np.median(lime_stabilities)),
+            "values": [float(v) for v in lime_stabilities],
+        },
+    }
+
+    # Statistical comparison
+    if len(shap_stabilities) > 0 and len(lime_stabilities) > 0:
+        stat, p_val = stats.wilcoxon(
+            shap_stabilities[:min(len(shap_stabilities), len(lime_stabilities))],
+            lime_stabilities[:min(len(shap_stabilities), len(lime_stabilities))]
+        )
+        diffs = np.array(shap_stabilities) - np.array(lime_stabilities)
+        non_zero = diffs[diffs != 0]
+        n_nz = len(non_zero)
+        ranks = stats.rankdata(np.abs(non_zero))
+        w_plus = float(np.sum(ranks[non_zero > 0]))
+        w_minus = float(np.sum(ranks[non_zero < 0]))
+        total_ranks = n_nz * (n_nz + 1) / 2.0
+        r_rb = float((w_plus - w_minus) / total_ranks) if total_ranks > 0 else 0.0
+
+        results["wilcoxon_stat"] = float(stat)
+        results["wilcoxon_p"] = float(p_val)
+        results["w_plus"] = w_plus
+        results["w_minus"] = w_minus
+        results["matched_pairs_rank_biserial_r"] = r_rb
+
+    print(f"\nStability Results:")
+    print(f"  SHAP: {results['SHAP']['mean']:.3f} ± {results['SHAP']['std']:.3f}")
+    print(f"  LIME: {results['LIME']['mean']:.3f} ± {results['LIME']['std']:.3f}")
+    if "wilcoxon_p" in results:
+        print(f"  Wilcoxon statistic W: {results['wilcoxon_stat']:.1f}")
+        print(f"  Wilcoxon p-value: {results['wilcoxon_p']:.4f}")
+        print(f"  Matched-pairs rank-biserial r: {results['matched_pairs_rank_biserial_r']:.3f}")
+
+    return results
+
+
 
 # ============================================================================
 # MAIN PIPELINE
@@ -697,6 +852,9 @@ def main():
         agreement_results, faithfulness_results,
         shap_vals, lime_vals, perm_vals, model, X_sample, dataset_info, mask_values
     )
+
+    # Phase 8: Stability (Input Perturbation)
+    stability_results = compute_stability(model, X_sample, X_train, dataset_info)
 
 if __name__ == "__main__":
     main()
