@@ -805,6 +805,156 @@ def compute_stability(model, X_sample, X_train, dataset_info):
     return results
 
 
+# ============================================================================
+# PHASE 9: METRIC AGREEMENT ANALYSIS
+# ============================================================================
+
+def compute_metric_agreement(faithfulness_results):
+    """Analyze whether different metrics agree on method rankings."""
+    print("\n" + "=" * 70)
+    print("PHASE 9: Metric agreement analysis")
+    print("=" * 70)
+
+    methods = ["SHAP", "LIME", "PermImp", "Random"]
+
+    # For each k, rank methods by comprehensiveness and sufficiency
+    rankings = {"comprehensiveness": {}, "sufficiency": {}}
+
+    for k_str in [f"k={k}" for k in FAITHFULNESS_K_VALUES]:
+        # Comprehensiveness: higher is better
+        comp_means = {m: faithfulness_results["comprehensiveness"][m][k_str]["mean"]
+                      for m in methods}
+        comp_ranking = sorted(comp_means.keys(), key=lambda m: -comp_means[m])
+
+        # Sufficiency: lower is better (less probability drop when keeping top features)
+        suff_means = {m: faithfulness_results["sufficiency"][m][k_str]["mean"]
+                      for m in methods}
+        suff_ranking = sorted(suff_means.keys(), key=lambda m: suff_means[m])
+
+        rankings["comprehensiveness"][k_str] = comp_ranking
+        rankings["sufficiency"][k_str] = suff_ranking
+
+        print(f"\n{k_str}:")
+        print(f"  Comprehensiveness ranking: {' > '.join(comp_ranking)}")
+        print(f"  Sufficiency ranking:       {' > '.join(suff_ranking)}")
+
+        # Check if rankings agree
+        agreement = comp_ranking == suff_ranking
+        print(f"  Rankings agree: {agreement}")
+
+    # Compute rank correlation between metrics across k values
+    all_comp_ranks = []
+    all_suff_ranks = []
+    for k_str in [f"k={k}" for k in FAITHFULNESS_K_VALUES]:
+        comp_r = rankings["comprehensiveness"][k_str]
+        suff_r = rankings["sufficiency"][k_str]
+        all_comp_ranks.append([comp_r.index(m) for m in methods])
+        all_suff_ranks.append([suff_r.index(m) for m in methods])
+
+    results = {
+        "rankings": rankings,
+        "methods": methods,
+    }
+
+    # Per-instance metric agreement: for each instance, do comp and suff
+    # agree on which method is best?
+    per_instance_agreement = {}
+    for k_str in [f"k={k}" for k in FAITHFULNESS_K_VALUES]:
+        agrees = 0
+        total = 0
+        real_methods = ["SHAP", "LIME", "PermImp"]
+
+        comp_data = faithfulness_results["comprehensiveness"]
+        suff_data = faithfulness_results["sufficiency"]
+
+        n_instances = len(comp_data[real_methods[0]][k_str]["values"])
+
+        for i in range(n_instances):
+            # For each instance, which method has highest comprehensiveness?
+            comp_best = max(real_methods,
+                           key=lambda m: comp_data[m][k_str]["values"][i])
+            # Which has lowest sufficiency score?
+            suff_best = min(real_methods,
+                           key=lambda m: suff_data[m][k_str]["values"][i])
+            if comp_best == suff_best:
+                agrees += 1
+            total += 1
+
+        agreement_rate = agrees / total if total > 0 else 0
+        per_instance_agreement[k_str] = {
+            "agreement_rate": float(agreement_rate),
+            "n_agree": agrees,
+            "n_total": total,
+        }
+        print(f"\n  Per-instance metric agreement at {k_str}: {agreement_rate:.3f} ({agrees}/{total})")
+
+    results["per_instance_agreement"] = per_instance_agreement
+
+    return results
+
+
+# ============================================================================
+# PHASE 8B: LIME SEED SENSITIVITY (STOCHASTICITY CHECK)
+# ============================================================================
+
+def evaluate_lime_seed_sensitivity(model, X_sample, X_train, dataset_info, n_instances=25):
+    """Evaluate LIME stochastic sampling sensitivity across independent random seeds."""
+    print("\n" + "=" * 70)
+    print("PHASE 8B: LIME Seed Sensitivity Analysis (Fixed Inputs, Varied Seeds)")
+    print("=" * 70)
+
+    feature_names = dataset_info["feature_names"]
+    categorical_indices = [feature_names.index(c) for c in dataset_info["categorical_cols"]]
+    seeds = [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021]
+    n_eval = min(n_instances, len(X_sample))
+    instance_rhos = []
+
+    for idx in range(n_eval):
+        row_vals = X_sample.iloc[idx].values
+        seed_exps = []
+        for s in seeds:
+            explainer = lime.lime_tabular.LimeTabularExplainer(
+                training_data=X_train.values,
+                feature_names=feature_names,
+                categorical_features=categorical_indices,
+                class_names=["<=50K", ">50K"],
+                mode="classification",
+                random_state=s,
+            )
+            exp_res = explainer.explain_instance(
+                row_vals,
+                model.predict_proba,
+                num_features=len(feature_names),
+                num_samples=LIME_NUM_SAMPLES,
+            )
+            w = np.zeros(len(feature_names))
+            exp_map = dict(exp_res.as_map().get(1, exp_res.as_map().get(0, [])))
+            for fi, weight in exp_map.items():
+                w[fi] = abs(weight)
+            seed_exps.append(w)
+
+        pair_rhos = []
+        for i in range(len(seeds)):
+            for j in range(i + 1, len(seeds)):
+                r, _ = stats.spearmanr(seed_exps[i], seed_exps[j])
+                if not np.isnan(r):
+                    pair_rhos.append(r)
+        if pair_rhos:
+            instance_rhos.append(float(np.mean(pair_rhos)))
+
+    results = {
+        "n_instances": n_eval,
+        "seeds": seeds,
+        "num_samples": LIME_NUM_SAMPLES,
+        "mean_stability": float(np.mean(instance_rhos)),
+        "std_stability": float(np.std(instance_rhos)),
+        "median_stability": float(np.median(instance_rhos)),
+        "values": instance_rhos,
+    }
+    print(f"  LIME Seed Stability across {len(seeds)} seeds on {n_eval} instances:")
+    print(f"  Mean Spearman rho: {results['mean_stability']:.3f} ± {results['std_stability']:.3f} (median {results['median_stability']:.3f})")
+    return results
+
 
 # ============================================================================
 # MAIN PIPELINE
@@ -818,11 +968,16 @@ def main():
     print(f"N explanation samples: {N_EXPLAIN_SAMPLES}")
     print()
 
+    all_results = {}
+    t_start = time.time()
+
     # Phase 1: Data
     X_train, X_test, y_train, y_test, dataset_info, label_encoders = load_adult_dataset()
+    all_results["dataset_info"] = dataset_info
 
     # Phase 2: Model
     model, model_metrics = train_model(X_train, y_train, X_test, y_test)
+    all_results["model_metrics"] = model_metrics
 
     # Phase 3: Select samples
     X_sample, y_sample = select_explanation_samples(model, X_test, y_test)
@@ -832,7 +987,10 @@ def main():
     lime_vals = generate_lime_explanations(model, X_sample, X_train, dataset_info)
     perm_vals = generate_permutation_importance(model, X_sample, dataset_info)
 
-    # Save raw explanations sample
+    # Save raw explanations
+    np.save(os.path.join(RAW_DIR, "shap_values.npy"), shap_vals)
+    np.save(os.path.join(RAW_DIR, "lime_values.npy"), lime_vals)
+    np.save(os.path.join(RAW_DIR, "perm_values.npy"), perm_vals)
     X_sample.to_csv(os.path.join(RAW_DIR, "X_sample.csv"), index=False)
     y_sample.to_csv(os.path.join(RAW_DIR, "y_sample.csv"), index=False)
 
@@ -840,21 +998,86 @@ def main():
     agreement_results = compute_agreement(
         shap_vals, lime_vals, perm_vals, dataset_info["feature_names"]
     )
+    all_results["agreement"] = {
+        metric: {pair: {k: v for k, v in data.items() if k != "values"}
+                 for pair, data in pairs.items()}
+        for metric, pairs in agreement_results.items()
+    }
 
     # Phase 6: Faithfulness
     mask_values = compute_masking_values(X_train, dataset_info)
     faithfulness_results = compute_faithfulness(
         model, X_sample, shap_vals, lime_vals, perm_vals, dataset_info, mask_values
     )
+    all_results["faithfulness"] = {
+        metric_type: {
+            method: {k: {kk: vv for kk, vv in v.items() if kk != "values"}
+                     for k, v in method_data.items()}
+            for method, method_data in type_data.items()
+        }
+        for metric_type, type_data in faithfulness_results.items()
+    }
 
     # Phase 7: Agreement vs Faithfulness
     agree_faith_results = compute_agreement_vs_faithfulness(
         agreement_results, faithfulness_results,
         shap_vals, lime_vals, perm_vals, model, X_sample, dataset_info, mask_values
     )
+    all_results["agreement_vs_faithfulness"] = {
+        pair: {k: v for k, v in data.items()
+               if k not in ["agreement_values", "faithfulness_values", "sensitivity_analysis"]}
+        for pair, data in agree_faith_results.items()
+    }
+    all_results["rq3_sensitivity"] = {
+        pair: data.get("sensitivity_analysis", {})
+        for pair, data in agree_faith_results.items()
+    }
 
     # Phase 8: Stability (Input Perturbation)
     stability_results = compute_stability(model, X_sample, X_train, dataset_info)
+    all_results["stability"] = {
+        k: {kk: vv for kk, vv in v.items() if kk != "values"}
+        if isinstance(v, dict) else v
+        for k, v in stability_results.items()
+    }
+
+    # Phase 8B: LIME Seed Sensitivity Analysis
+    lime_seed_results = evaluate_lime_seed_sensitivity(
+        model, X_sample, X_train, dataset_info, n_instances=25
+    )
+    all_results["lime_seed_sensitivity"] = {
+        k: v for k, v in lime_seed_results.items() if k != "values"
+    }
+
+    # Phase 9: Metric agreement
+    metric_agree_results = compute_metric_agreement(faithfulness_results)
+    all_results["metric_agreement"] = metric_agree_results
+
+    # Save all results
+    with open(os.path.join(PROCESSED_DIR, "all_results.json"), "w") as f:
+        json.dump(all_results, f, indent=2, default=str)
+
+    # Save raw detailed results with per-instance values
+    raw_detailed = {
+        "agreement": agreement_results,
+        "faithfulness": faithfulness_results,
+        "agreement_vs_faithfulness": agree_faith_results,
+        "rq3_sensitivity": all_results["rq3_sensitivity"],
+        "stability": stability_results,
+        "lime_seed_sensitivity": lime_seed_results,
+    }
+    with open(os.path.join(RAW_DIR, "detailed_results.json"), "w") as f:
+        json.dump(raw_detailed, f, indent=2, default=str)
+
+    elapsed = time.time() - t_start
+    print(f"\n{'=' * 70}")
+    print(f"ALL EXPERIMENTS COMPLETED in {elapsed:.1f}s")
+    print(f"{'=' * 70}")
+    print(f"\nResults saved to: {RESULTS_DIR}")
+
+    return all_results, raw_detailed, agreement_results, faithfulness_results, \
+           agree_faith_results, stability_results, lime_seed_results
+
 
 if __name__ == "__main__":
     main()

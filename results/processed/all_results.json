@@ -1,0 +1,435 @@
+{
+  "dataset_info": {
+    "name": "adult",
+    "n_samples": 45222,
+    "n_train": 36177,
+    "n_test": 9045,
+    "n_features": 14,
+    "n_continuous": 6,
+    "n_categorical": 8,
+    "feature_names": [
+      "age",
+      "workclass",
+      "fnlwgt",
+      "education",
+      "education-num",
+      "marital-status",
+      "occupation",
+      "relationship",
+      "race",
+      "sex",
+      "capital-gain",
+      "capital-loss",
+      "hours-per-week",
+      "native-country"
+    ],
+    "continuous_cols": [
+      "age",
+      "fnlwgt",
+      "education-num",
+      "capital-gain",
+      "capital-loss",
+      "hours-per-week"
+    ],
+    "categorical_cols": [
+      "workclass",
+      "education",
+      "marital-status",
+      "occupation",
+      "relationship",
+      "race",
+      "sex",
+      "native-country"
+    ],
+    "target_distribution": {
+      "0": 34014,
+      "1": 11208
+    }
+  },
+  "model_metrics": {
+    "accuracy": 0.867551133222775,
+    "f1_score": 0.7121576165305141,
+    "precision": 0.771875,
+    "recall": 0.6610169491525424,
+    "roc_auc": 0.9250064219713111
+  },
+  "agreement": {
+    "spearman": {
+      "SHAP_vs_LIME": {
+        "mean": 0.5737406593406593,
+        "std": 0.1550352367284949,
+        "median": 0.5956043956043956
+      },
+      "SHAP_vs_PermImp": {
+        "mean": 0.7488139883022812,
+        "std": 0.1179515206970757,
+        "median": 0.7714285714285714
+      },
+      "LIME_vs_PermImp": {
+        "mean": 0.4308825721315635,
+        "std": 0.22771695979620782,
+        "median": 0.4343054304703926
+      }
+    },
+    "kendall": {
+      "SHAP_vs_LIME": {
+        "mean": 0.4183736263736264,
+        "std": 0.12874826572823425,
+        "median": 0.42857142857142855
+      },
+      "SHAP_vs_PermImp": {
+        "mean": 0.5915865431054642,
+        "std": 0.11780616693687422,
+        "median": 0.6043956043956044
+      },
+      "LIME_vs_PermImp": {
+        "mean": 0.31809668598579516,
+        "std": 0.17619144346370735,
+        "median": 0.3186813186813187
+      }
+    },
+    "topk_3": {
+      "SHAP_vs_LIME": {
+        "mean": 0.3566666666666667,
+        "std": 0.22437567703395225
+      },
+      "SHAP_vs_PermImp": {
+        "mean": 0.6493333333333332,
+        "std": 0.20797863138099335
+      },
+      "LIME_vs_PermImp": {
+        "mean": 0.40399999999999997,
+        "std": 0.24291196393389566
+      }
+    },
+    "topk_5": {
+      "SHAP_vs_LIME": {
+        "mean": 0.6035999999999999,
+        "std": 0.15253537294673652
+      },
+      "SHAP_vs_PermImp": {
+        "mean": 0.7412000000000001,
+        "std": 0.14745358591773888
+      },
+      "LIME_vs_PermImp": {
+        "mean": 0.5852,
+        "std": 0.16882227341201161
+      }
+    }
+  },
+  "faithfulness": {
+    "comprehensiveness": {
+      "SHAP": {
+        "k=1": {
+          "mean": 0.10883522033691406,
+          "std": 0.16539233922958374,
+          "median": 0.06515148282051086
+        },
+        "k=3": {
+          "mean": 0.22687576711177826,
+          "std": 0.18436123430728912,
+          "median": 0.2076331377029419
+        },
+        "k=5": {
+          "mean": 0.34792712330818176,
+          "std": 0.1942366361618042,
+          "median": 0.35102981328964233
+        }
+      },
+      "LIME": {
+        "k=1": {
+          "mean": 0.02682550810277462,
+          "std": 0.11987560987472534,
+          "median": 0.0
+        },
+        "k=3": {
+          "mean": 0.06989801675081253,
+          "std": 0.1549418717622757,
+          "median": 0.012690871953964233
+        },
+        "k=5": {
+          "mean": 0.13464102149009705,
+          "std": 0.1787637174129486,
+          "median": 0.09484317898750305
+        }
+      },
+      "PermImp": {
+        "k=1": {
+          "mean": 0.09945767372846603,
+          "std": 0.16762469708919525,
+          "median": 0.04063308238983154
+        },
+        "k=3": {
+          "mean": 0.2041553109884262,
+          "std": 0.20485585927963257,
+          "median": 0.15522779524326324
+        },
+        "k=5": {
+          "mean": 0.30235975980758667,
+          "std": 0.2136336714029312,
+          "median": 0.2940070629119873
+        }
+      },
+      "Random": {
+        "k=1": {
+          "mean": 0.008724980987608433,
+          "std": 0.06101818382740021,
+          "median": 0.0
+        },
+        "k=3": {
+          "mean": 0.03667295724153519,
+          "std": 0.10192083567380905,
+          "median": 0.0027951300144195557
+        },
+        "k=5": {
+          "mean": 0.07423744350671768,
+          "std": 0.1415659338235855,
+          "median": 0.026543766260147095
+        }
+      }
+    },
+    "sufficiency": {
+      "SHAP": {
+        "k=1": {
+          "mean": 0.1518322080373764,
+          "std": 0.17478084564208984,
+          "median": 0.1369578242301941
+        },
+        "k=3": {
+          "mean": 0.03992893174290657,
+          "std": 0.09392129629850388,
+          "median": 0.012561261653900146
+        },
+        "k=5": {
+          "mean": 0.013810399919748306,
+          "std": 0.05999971181154251,
+          "median": 0.000804901123046875
+        }
+      },
+      "LIME": {
+        "k=1": {
+          "mean": 0.3928295969963074,
+          "std": 0.2180454581975937,
+          "median": 0.512162446975708
+        },
+        "k=3": {
+          "mean": 0.18102294206619263,
+          "std": 0.18653170764446259,
+          "median": 0.14790520071983337
+        },
+        "k=5": {
+          "mean": 0.11383173614740372,
+          "std": 0.14736111462116241,
+          "median": 0.06507441401481628
+        }
+      },
+      "PermImp": {
+        "k=1": {
+          "mean": 0.25543421506881714,
+          "std": 0.23447087407112122,
+          "median": 0.2405318021774292
+        },
+        "k=3": {
+          "mean": 0.058535195887088776,
+          "std": 0.10742416232824326,
+          "median": 0.025677263736724854
+        },
+        "k=5": {
+          "mean": 0.016562949866056442,
+          "std": 0.06694566458463669,
+          "median": 0.0021759867668151855
+        }
+      },
+      "Random": {
+        "k=1": {
+          "mean": 0.3740393817424774,
+          "std": 0.19412349164485931,
+          "median": 0.40771597623825073
+        },
+        "k=3": {
+          "mean": 0.277980774641037,
+          "std": 0.20338626205921173,
+          "median": 0.26877155900001526
+        },
+        "k=5": {
+          "mean": 0.19476573169231415,
+          "std": 0.1892901062965393,
+          "median": 0.1603202223777771
+        }
+      }
+    }
+  },
+  "agreement_vs_faithfulness": {
+    "SHAP_vs_LIME": {
+      "pearson_r": -0.045189282907737195,
+      "pearson_p": 0.313238844359044,
+      "spearman_r": -0.08277446741688657,
+      "spearman_p": 0.06439494131284988,
+      "high_agreement_faithfulness_mean": 0.14028841257095337,
+      "low_agreement_faithfulness_mean": 0.1566160023212433,
+      "mannwhitney_U": 28363.0,
+      "mannwhitney_p": 0.07414272051029969,
+      "n_high": 252,
+      "n_low": 248
+    },
+    "SHAP_vs_PermImp": {
+      "pearson_r": -0.016678239099138903,
+      "pearson_p": 0.7098710901177042,
+      "spearman_r": 0.004464324307487729,
+      "spearman_p": 0.9206809709025405,
+      "high_agreement_faithfulness_mean": 0.2140483260154724,
+      "low_agreement_faithfulness_mean": 0.21701836585998535,
+      "mannwhitney_U": 30976.0,
+      "mannwhitney_p": 0.8677329901657398,
+      "n_high": 253,
+      "n_low": 247
+    },
+    "LIME_vs_PermImp": {
+      "pearson_r": -0.03422418999786598,
+      "pearson_p": 0.44511490832450307,
+      "spearman_r": -0.1328696672271924,
+      "spearman_p": 0.0029124651443273213,
+      "high_agreement_faithfulness_mean": 0.13798888027668,
+      "low_agreement_faithfulness_mean": 0.13606445491313934,
+      "mannwhitney_U": 28464.0,
+      "mannwhitney_p": 0.08463787809694787,
+      "n_high": 250,
+      "n_low": 250
+    }
+  },
+  "stability": {
+    "SHAP": {
+      "mean": 0.8762373626373627,
+      "std": 0.06191877208434287,
+      "median": 0.8951648351648351
+    },
+    "LIME": {
+      "mean": 0.8864967032967034,
+      "std": 0.0456227985641237,
+      "median": 0.8936263736263738
+    },
+    "wilcoxon_stat": 2176.0,
+    "wilcoxon_p": 0.2966709431006965,
+    "w_plus": 2176.0,
+    "w_minus": 2774.0,
+    "matched_pairs_rank_biserial_r": -0.12080808080808081
+  },
+  "metric_agreement": {
+    "rankings": {
+      "comprehensiveness": {
+        "k=1": [
+          "SHAP",
+          "PermImp",
+          "LIME",
+          "Random"
+        ],
+        "k=3": [
+          "SHAP",
+          "PermImp",
+          "LIME",
+          "Random"
+        ],
+        "k=5": [
+          "SHAP",
+          "PermImp",
+          "LIME",
+          "Random"
+        ]
+      },
+      "sufficiency": {
+        "k=1": [
+          "SHAP",
+          "PermImp",
+          "Random",
+          "LIME"
+        ],
+        "k=3": [
+          "SHAP",
+          "PermImp",
+          "LIME",
+          "Random"
+        ],
+        "k=5": [
+          "SHAP",
+          "PermImp",
+          "LIME",
+          "Random"
+        ]
+      }
+    },
+    "methods": [
+      "SHAP",
+      "LIME",
+      "PermImp",
+      "Random"
+    ],
+    "per_instance_agreement": {
+      "k=1": {
+        "agreement_rate": 0.896,
+        "n_agree": 448,
+        "n_total": 500
+      },
+      "k=3": {
+        "agreement_rate": 0.878,
+        "n_agree": 439,
+        "n_total": 500
+      },
+      "k=5": {
+        "agreement_rate": 0.814,
+        "n_agree": 407,
+        "n_total": 500
+      }
+    }
+  },
+  "rq3_sensitivity": {
+    "SHAP_vs_LIME": {
+      "method_a": "SHAP",
+      "spearman_r_a": -0.14069306837526271,
+      "spearman_p_a": 0.0016114877519143606,
+      "method_b": "LIME",
+      "spearman_r_b": 0.11397407444649169,
+      "spearman_p_b": 0.01075762970464191,
+      "spearman_r_avg": -0.08277446741688657,
+      "spearman_p_avg": 0.06439494131284988
+    },
+    "SHAP_vs_PermImp": {
+      "method_a": "SHAP",
+      "spearman_r_a": 0.023604062276750614,
+      "spearman_p_a": 0.5985024976848606,
+      "method_b": "PermImp",
+      "spearman_r_b": -0.001451992702300924,
+      "spearman_p_b": 0.9741639889484834,
+      "spearman_r_avg": 0.004464324307487729,
+      "spearman_p_avg": 0.9206809709025405
+    },
+    "LIME_vs_PermImp": {
+      "method_a": "LIME",
+      "spearman_r_a": 0.14324343588115307,
+      "spearman_p_a": 0.0013200691845126225,
+      "method_b": "PermImp",
+      "spearman_r_b": -0.17145592393128528,
+      "spearman_p_b": 0.00011675455346790096,
+      "spearman_r_avg": -0.1328696672271924,
+      "spearman_p_avg": 0.0029124651443273213
+    }
+  },
+  "lime_seed_sensitivity": {
+    "n_instances": 25,
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1011,
+      1213,
+      1415,
+      1617,
+      1819,
+      2021
+    ],
+    "num_samples": 5000,
+    "mean_stability": 0.9245284493284494,
+    "std_stability": 0.0138436342283946,
+    "median_stability": 0.925958485958486
+  }
+}
