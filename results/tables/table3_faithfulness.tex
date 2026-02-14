@@ -1,0 +1,18 @@
+\begin{table*}[t]
+\centering
+\caption{Faithfulness Evaluation: Comprehensiveness and Sufficiency (Mean $\pm$ SD)}
+\label{tab:faithfulness}
+\begin{tabular}{llcccc}
+\toprule
+\textbf{Metric} & \textbf{$k$} & \textbf{SHAP} & \textbf{LIME} & \textbf{Perm.\ Sens.} & \textbf{Random} \\
+\midrule
+Comprehensiveness & $k=1$ & $0.1088 \pm 0.1654$ & $0.0268 \pm 0.1199$ & $0.0995 \pm 0.1676$ & $0.0087 \pm 0.0610$ \\
+ & $k=3$ & $0.2269 \pm 0.1844$ & $0.0699 \pm 0.1549$ & $0.2042 \pm 0.2049$ & $0.0367 \pm 0.1019$ \\
+ & $k=5$ & $0.3479 \pm 0.1942$ & $0.1346 \pm 0.1788$ & $0.3024 \pm 0.2136$ & $0.0742 \pm 0.1416$ \\
+\midrule
+Sufficiency & $k=1$ & $0.1518 \pm 0.1748$ & $0.3928 \pm 0.2180$ & $0.2554 \pm 0.2345$ & $0.3740 \pm 0.1941$ \\
+ & $k=3$ & $0.0399 \pm 0.0939$ & $0.1810 \pm 0.1865$ & $0.0585 \pm 0.1074$ & $0.2780 \pm 0.2034$ \\
+ & $k=5$ & $0.0138 \pm 0.0600$ & $0.1138 \pm 0.1474$ & $0.0166 \pm 0.0669$ & $0.1948 \pm 0.1893$ \\
+\bottomrule
+\end{tabular}
+\end{table*}

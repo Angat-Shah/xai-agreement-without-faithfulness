@@ -1,0 +1,15 @@
+\begin{table}[htbp]
+\centering
+\caption{Pairwise Explanation Agreement (Mean $\pm$ SD)}
+\label{tab:agreement}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Metric} & \textbf{SHAP vs LIME} & \textbf{SHAP vs PS} & \textbf{LIME vs PS} \\
+\midrule
+Spearman $\rho$ & $0.574 \pm 0.155$ & $0.749 \pm 0.118$ & $0.431 \pm 0.228$ \\
+Kendall $\tau$ & $0.418 \pm 0.129$ & $0.592 \pm 0.118$ & $0.318 \pm 0.176$ \\
+Top-3 overlap & $0.357 \pm 0.224$ & $0.649 \pm 0.208$ & $0.404 \pm 0.243$ \\
+Top-5 overlap & $0.604 \pm 0.153$ & $0.741 \pm 0.147$ & $0.585 \pm 0.169$ \\
+\bottomrule
+\end{tabular}
+\end{table}

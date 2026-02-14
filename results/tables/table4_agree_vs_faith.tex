@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{Correlation Between Explanation Agreement and Faithfulness}
+\label{tab:agree-vs-faith}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Method Pair} & \textbf{Spearman $r$} & \textbf{Raw $p$} & \textbf{Holm $p$} & \textbf{High Agree} & \textbf{Low Agree} \\
+\midrule
+SHAP vs LIME & $-0.083$ & $0.064$ & $0.129$ & $0.1403$ & $0.1566$ \\
+SHAP vs PS & $0.004$ & $0.921$ & $0.921$ & $0.2140$ & $0.2170$ \\
+LIME vs PS & $-0.133$ & $0.003$ & $0.009$ & $0.1380$ & $0.1361$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
