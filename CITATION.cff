@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this work or codebase, please cite it as below."
+authors:
+  - family-names: "Shah"
+    given-names: "Angat"
+title: "Agreement Without Faithfulness: Do Consistent XAI Methods Produce Better Explanations?"
+version: "1.0.0"
+date-released: "2026-03-07"
+type: article
+url: "https://github.com/Angat-Shah/xai-agreement-without-faithfulness"
+repository-code: "https://github.com/Angat-Shah/xai-agreement-without-faithfulness"
+notes: "Independent Research Manuscript (not submitted for publication)"
+keywords:
+  - "explainable artificial intelligence"
+  - "XAI"
+  - "feature attribution"
+  - "faithfulness"
+  - "inter-method agreement"
+  - "SHAP"
+  - "LIME"
+  - "tabular machine learning"
